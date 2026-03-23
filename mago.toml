@@ -102,6 +102,12 @@ use-compound-assignment = { enabled = true, level = "error" }
 # aggregate-design: 連続 isset の結合
 combine-consecutive-issets = { enabled = true, level = "error" }
 
+# clean-architecture: DB クエリの直接使用を禁止（リポジトリパターン強制）
+no-direct-db-query = { enabled = true, level = "error" }
+
+# safety: ini_set の使用を禁止（実行時設定変更の禁止）
+no-ini-set = { enabled = true, level = "error" }
+
 # aggregate-design, tell-dont-ask: Yoda条件を検出（可読性の低下）
 yoda-conditions = { enabled = true, level = "error" }
 
@@ -159,6 +165,9 @@ str-starts-with = { enabled = true, level = "error" }
 
 # clean-architecture: 有効な docblock を要求
 valid-docblock = { enabled = true, level = "error" }
+
+# clarity: ハッシュ絵文字を禁止（コードの明瞭性）
+no-hash-emoji = { enabled = true, level = "error" }
 
 # ---------------------------------------------------------------------------
 # ◆ Consistency（一貫性）
@@ -532,3 +541,23 @@ trust-existence-checks = false
 
 # use 文のチェック — 未使用 import の検出
 check-use-statements = true
+
+# 例外ハンドリングの検証 — error-classification スキル
+# 未キャッチの例外を報告する
+check-throws = true
+
+# プロパティ初期化の検証 — aggregate-design (完全コンストラクタ)
+# 全プロパティがコンストラクタで初期化されていることを確認
+check-property-initialization = true
+
+# クラスの final 強制 — aggregate-design (Evans Rule: 集約の保護)
+# 全クラスを final, abstract, または @api のいずれかにする
+enforce-class-finality = true
+
+# @api/@internal の要求 — package-design (公開API境界の明確化)
+# 抽象クラス/インターフェース/トレイトに @api または @internal を要求
+require-api-or-internal = true
+
+# スーパーグローバルの登録を無効化 — clean-architecture (ドメイン層の純粋性)
+# $_GET, $_POST 等の使用を検出可能にする
+register-super-globals = false
