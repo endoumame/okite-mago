@@ -1,0 +1,38 @@
+{
+    "name": "endoumame/okite-mago",
+    "description": "okite-ai スキルに基づく PHP 静的解析設定（mago + カスタムルール）",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4"
+    },
+    "scripts": {
+        "lint": "mago lint",
+        "analyze": "mago analyze",
+        "fix": "mago lint --fix",
+        "fmt": "mago fmt",
+        "check:getter": "php scripts/check-no-getter.php src/Domain",
+        "check:transaction": "php scripts/check-transaction-boundary.php src",
+        "check:dependency": "php scripts/check-dependency-direction.php src",
+        "check:demeter": "php scripts/check-method-chain.php src/Domain",
+        "check:repository": "php scripts/check-repository-naming.php src",
+        "check:aggregate": "php scripts/check-aggregate-design.php src/Domain",
+        "check:primitives": "php scripts/check-domain-primitives.php src/Domain",
+        "check:collection": "php scripts/check-first-class-collection.php src/Domain",
+        "check:domain": [
+            "@check:getter",
+            "@check:transaction",
+            "@check:dependency",
+            "@check:demeter",
+            "@check:repository",
+            "@check:aggregate",
+            "@check:primitives",
+            "@check:collection"
+        ],
+        "check": [
+            "@lint",
+            "@analyze",
+            "@check:domain"
+        ]
+    }
+}
