@@ -48,6 +48,19 @@ if command -v mago &> /dev/null; then
     else
         echo "✅ mago analyze 完了。"
     fi
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Phase 1.5: mago guard（Architectural Guard: 依存方向 + 構造規約）"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "▶ mago guard 実行中..."
+    if ! mago guard; then
+        echo "❌ mago guard に失敗しました。"
+        EXIT_CODE=1
+    else
+        echo "✅ mago guard 完了。"
+    fi
 else
     echo "⚠️  mago がインストールされていません。"
     echo "   インストール: cargo install mago"

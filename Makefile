@@ -12,7 +12,7 @@
 #   make all           — fmt + check（CI 用）
 # =============================================================================
 
-.PHONY: lint analyze check-domain check fix fmt all install
+.PHONY: lint analyze guard check-domain check fix fmt all install
 
 TARGET_DIR ?= src
 DOMAIN_DIR ?= src/Domain
@@ -24,6 +24,10 @@ lint:
 # mago 静的解析
 analyze:
 	mago analyze
+
+# mago guard（Architectural Guard: 依存方向 + 構造規約）
+guard:
+	mago guard
 
 # mago 自動修正
 fix:
@@ -37,8 +41,8 @@ fmt:
 check-domain:
 	@bash scripts/check-all.sh $(TARGET_DIR) $(DOMAIN_DIR)
 
-# 全チェック実行
-check: lint analyze check-domain
+# 全チェック実行（lint + analyze + guard + カスタム）
+check: lint analyze guard check-domain
 
 # CI 用: フォーマット + 全チェック
 all: fmt check

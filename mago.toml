@@ -561,3 +561,355 @@ require-api-or-internal = true
 # スーパーグローバルの登録を無効化 — clean-architecture (ドメイン層の純粋性)
 # $_GET, $_POST 等の使用を検出可能にする
 register-super-globals = false
+
+# =============================================================================
+# [guard] Architectural Guard（アーキテクチャガード）
+# =============================================================================
+# mago guard — deptrac + arkitect の代替。単一バイナリで依存方向と構造規約を強制。
+#
+# Perimeter Guard: レイヤー間の依存方向を制御
+# Structural Guard: シンボルの命名規約・修飾子・継承関係を強制
+#
+# スキル: clean-architecture, package-design, domain-building-blocks,
+#         aggregate-design, repository-design, repository-placement,
+#         domain-primitives-and-always-valid, ddd-module-pattern
+# =============================================================================
+
+[guard]
+minimum-fail-level = "error"
+
+# =============================================================================
+# [guard.perimeter] 境界防御（Perimeter Guard）
+# =============================================================================
+# clean-architecture スキル: 依存方向を厳格に制御
+#
+# レイヤー順序（内側 → 外側）:
+#   Domain → UseCase → Application → Adapter → Infrastructure
+#
+# ルール: 内側レイヤーは外側レイヤーに依存してはならない
+# =============================================================================
+
+[guard.perimeter]
+# レイヤー定義（内側から外側へ順序付け）
+# Domain が最も内側、Infrastructure が最も外側
+layering = [
+    "App\\Domain",
+    "App\\UseCase",
+    "App\\Application",
+    "App\\Adapter",
+    "App\\Infrastructure",
+]
+
+# レイヤーエイリアス — 再利用可能な名前空間グループ
+[guard.perimeter.layers]
+# PHP ネイティブ関数・クラス
+core = ["@native"]
+
+# PSR 標準インターフェース（全レイヤーで使用可能）
+psr = ["Psr\\**"]
+
+# ドメインプリミティブ用ライブラリ
+domain-libs = [
+    "DateTimeImmutable",
+    "DateTimeInterface",
+    "Ramsey\\Uuid\\**",
+    "Symfony\\Component\\Uid\\**",
+    "Money\\**",
+    "Brick\\Math\\**",
+    "Brick\\DateTime\\**",
+]
+
+# フレームワーク（Infrastructure のみ許可）
+framework = [
+    "Symfony\\**",
+    "Illuminate\\**",
+    "Doctrine\\**",
+    "Laravel\\**",
+]
+
+# メッセージング（UseCase/Application で使用可能）
+messaging = [
+    "Symfony\\Component\\Messenger\\**",
+    "Illuminate\\Contracts\\Queue\\**",
+]
+
+# テスト用
+testing = [
+    "PHPUnit\\**",
+    "Mockery\\**",
+    "Prophecy\\**",
+]
+
+# -----
+# 名前空間ごとの依存ルール
+# -----
+
+# Domain 層: 最も内側 — 外部依存を完全排除
+# clean-architecture: ドメインはフレームワーク・インフラに一切依存しない
+# domain-building-blocks: 純粋な PHP + ドメインプリミティブライブラリのみ
+[[guard.perimeter.rules]]
+namespace = "App\\Domain"
+permit = ["@layer:core", "@layer:psr", "@layer:domain-libs"]
+
+# UseCase 層: Domain にのみ依存
+# clean-architecture: ユースケースはアダプタ・インフラに依存しない
+[[guard.perimeter.rules]]
+namespace = "App\\UseCase"
+permit = ["@layer:core", "@layer:psr", "@layer:domain-libs", "@layer:messaging", "App\\Domain\\**"]
+
+# Application 層: Domain + UseCase に依存可能
+# clean-architecture: アプリケーション層はアダプタ・インフラに依存しない
+[[guard.perimeter.rules]]
+namespace = "App\\Application"
+permit = ["@layer:core", "@layer:psr", "@layer:domain-libs", "@layer:messaging", "App\\Domain\\**", "App\\UseCase\\**"]
+
+# Adapter 層: Domain + UseCase + Application に依存可能
+# repository-placement: アダプタ層にリポジトリ実装を配置
+[[guard.perimeter.rules]]
+namespace = "App\\Adapter"
+permit = ["@layer:core", "@layer:psr", "@layer:domain-libs", "@layer:framework", "App\\Domain\\**", "App\\UseCase\\**", "App\\Application\\**"]
+
+# Infrastructure 層: 全レイヤーに依存可能（最も外側）
+# clean-architecture: インフラ層はフレームワーク依存を許可
+[[guard.perimeter.rules]]
+namespace = "App\\Infrastructure"
+permit = ["@layer:core", "@layer:psr", "@layer:domain-libs", "@layer:framework", "@layer:messaging", "App\\Domain\\**", "App\\UseCase\\**", "App\\Application\\**", "App\\Adapter\\**"]
+
+# =============================================================================
+# [guard.structural] 構造防御（Structural Guard）
+# =============================================================================
+# 名前空間内のシンボルに対して、命名規約・修飾子・継承関係を強制。
+# =============================================================================
+
+[guard.structural]
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — 値オブジェクト（Value Object）
+# -----------------------------------------------------------------------
+# domain-primitives-and-always-valid: 値オブジェクトは不変でなければならない
+# domain-building-blocks: 値は readonly で表現する
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\ValueObject\\**"
+target = "Class"
+must_be_final = true
+must_be_readonly = true
+reason = "値オブジェクトは final readonly でなければならない（domain-primitives-and-always-valid）"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — エンティティ（Entity）
+# -----------------------------------------------------------------------
+# aggregate-design: エンティティは final（継承による不整合を防止）
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\Entity\\**"
+target = "Class"
+must_be_final = true
+reason = "エンティティは final でなければならない（aggregate-design: 集約の保護）"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — 集約ルート（Aggregate Root）
+# -----------------------------------------------------------------------
+# aggregate-design: 集約ルートは final で外部からの継承を禁止
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\Aggregate\\**"
+target = "Class"
+must_be_final = true
+reason = "集約ルートは final でなければならない（aggregate-design: Evans Rule）"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — ドメインイベント
+# -----------------------------------------------------------------------
+# aggregate-transaction-boundary: イベントは不変の記録
+# cqrs-to-event-sourcing: イベントは値オブジェクトとして扱う
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\Event\\**"
+target = "Class"
+must_be_final = true
+must_be_readonly = true
+reason = "ドメインイベントは final readonly でなければならない（aggregate-transaction-boundary）"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — ドメインサービス
+# -----------------------------------------------------------------------
+# domain-building-blocks: ドメインサービスは final（継承の濫用防止）
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\Service\\**"
+target = "Class"
+must_be_final = true
+reason = "ドメインサービスは final でなければならない（domain-building-blocks）"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — リポジトリインターフェース
+# -----------------------------------------------------------------------
+# repository-design: リポジトリはドメイン層にインターフェースとして定義
+# 名前は *Repository で終わる
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\Repository\\**"
+must_be = ["Interface"]
+must_be_named = "*Repository"
+reason = "ドメイン層のリポジトリはインターフェースで、名前は *Repository で終わる（repository-design）"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — ファクトリインターフェース
+# -----------------------------------------------------------------------
+# domain-building-blocks: ファクトリはドメイン層にインターフェースとして定義
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\Factory\\**"
+must_be = ["Interface"]
+must_be_named = "*Factory"
+reason = "ドメイン層のファクトリはインターフェースで、名前は *Factory で終わる"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — ドメイン例外
+# -----------------------------------------------------------------------
+# error-classification: ドメイン例外は final（例外階層の安定性）
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\Exception\\**"
+target = "Class"
+must_be_final = true
+reason = "ドメイン例外は final でなければならない（error-classification）"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — コレクション（First-Class Collection）
+# -----------------------------------------------------------------------
+# first-class-collection: コレクションは不変
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\Collection\\**"
+target = "Class"
+must_be_final = true
+must_be_readonly = true
+reason = "コレクションは final readonly でなければならない（first-class-collection）"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — 仕様パターン（Specification）
+# -----------------------------------------------------------------------
+# tell-dont-ask: 仕様は final（問い合わせロジックの安定性）
+[[guard.structural.rules]]
+on = "App\\Domain\\**\\Specification\\**"
+target = "Class"
+must_be_final = true
+must_be_named = "*Specification"
+reason = "仕様は final で名前は *Specification で終わる（tell-dont-ask）"
+
+# -----------------------------------------------------------------------
+# ◆ Domain 層 — 全体制約（名前空間にクラスのみ許可しない）
+# -----------------------------------------------------------------------
+# domain-building-blocks: Domain 層に Trait を配置しない
+[[guard.structural.rules]]
+on = "App\\Domain\\**"
+must_be = ["Class", "Interface", "Enum"]
+not_on = "App\\Domain\\**\\Shared\\**"
+reason = "Domain 層に Trait を配置してはならない（domain-building-blocks: 継承よりコンポジション）"
+
+# -----------------------------------------------------------------------
+# ◆ UseCase 層 — コマンド / クエリ
+# -----------------------------------------------------------------------
+# cqrs-aggregate-modeling: コマンド/クエリは不変のデータ構造
+[[guard.structural.rules]]
+on = "App\\UseCase\\**\\Command\\**"
+target = "Class"
+must_be_final = true
+must_be_readonly = true
+must_be_named = "*Command"
+reason = "コマンドは final readonly で名前は *Command で終わる（cqrs-aggregate-modeling）"
+
+[[guard.structural.rules]]
+on = "App\\UseCase\\**\\Query\\**"
+target = "Class"
+must_be_final = true
+must_be_readonly = true
+must_be_named = "*Query"
+reason = "クエリは final readonly で名前は *Query で終わる（cqrs-aggregate-modeling）"
+
+# -----------------------------------------------------------------------
+# ◆ UseCase 層 — ハンドラ
+# -----------------------------------------------------------------------
+# cqrs-aggregate-modeling: ハンドラは final（1ユースケース1ハンドラ）
+[[guard.structural.rules]]
+on = "App\\UseCase\\**\\Handler\\**"
+target = "Class"
+must_be_final = true
+must_be_named = "*Handler"
+reason = "ハンドラは final で名前は *Handler で終わる（cqrs-aggregate-modeling）"
+
+# -----------------------------------------------------------------------
+# ◆ Adapter 層 — コントローラ
+# -----------------------------------------------------------------------
+# clean-architecture: コントローラは final（フレームワーク依存の局所化）
+[[guard.structural.rules]]
+on = "App\\Adapter\\**\\Controller\\**"
+target = "Class"
+must_be_final = true
+must_be_named = "*Controller"
+reason = "コントローラは final で名前は *Controller で終わる（clean-architecture）"
+
+# -----------------------------------------------------------------------
+# ◆ Adapter 層 — プレゼンター / ビューモデル
+# -----------------------------------------------------------------------
+[[guard.structural.rules]]
+on = "App\\Adapter\\**\\Presenter\\**"
+target = "Class"
+must_be_final = true
+must_be_named = "*Presenter"
+reason = "プレゼンターは final で名前は *Presenter で終わる（clean-architecture）"
+
+# -----------------------------------------------------------------------
+# ◆ Infrastructure 層 — リポジトリ実装
+# -----------------------------------------------------------------------
+# repository-placement: リポジトリ実装は Infrastructure に配置
+# repository-design: 命名規約を強制
+[[guard.structural.rules]]
+on = "App\\Infrastructure\\**\\Repository\\**"
+target = "Class"
+must_be_final = true
+must_be_named = "*Repository"
+reason = "リポジトリ実装は final で名前は *Repository で終わる（repository-placement）"
+
+# -----------------------------------------------------------------------
+# ◆ Infrastructure 層 — イベントリスナー
+# -----------------------------------------------------------------------
+[[guard.structural.rules]]
+on = "App\\Infrastructure\\**\\Listener\\**"
+target = "Class"
+must_be_final = true
+must_be_named = "*Listener"
+reason = "イベントリスナーは final で名前は *Listener で終わる"
+
+# -----------------------------------------------------------------------
+# ◆ Infrastructure 層 — サブスクライバー
+# -----------------------------------------------------------------------
+[[guard.structural.rules]]
+on = "App\\Infrastructure\\**\\Subscriber\\**"
+target = "Class"
+must_be_final = true
+must_be_named = "*Subscriber"
+reason = "サブスクライバーは final で名前は *Subscriber で終わる"
+
+# -----------------------------------------------------------------------
+# ◆ Infrastructure 層 — ミドルウェア
+# -----------------------------------------------------------------------
+[[guard.structural.rules]]
+on = "App\\Infrastructure\\**\\Middleware\\**"
+target = "Class"
+must_be_final = true
+must_be_named = "*Middleware"
+reason = "ミドルウェアは final で名前は *Middleware で終わる"
+
+# -----------------------------------------------------------------------
+# ◆ 全レイヤー共通 — DTO（Data Transfer Object）
+# -----------------------------------------------------------------------
+# domain-primitives-and-always-valid: DTO は不変のデータ構造
+[[guard.structural.rules]]
+on = "App\\**\\DTO\\**"
+target = "Class"
+must_be_final = true
+must_be_readonly = true
+reason = "DTO は final readonly でなければならない（domain-primitives-and-always-valid）"
+
+# -----------------------------------------------------------------------
+# ◆ 全レイヤー共通 — Enum は名前空間で保護
+# -----------------------------------------------------------------------
+# domain-building-blocks: Enum は final 相当（PHP では暗黙的に final）
+[[guard.structural.rules]]
+on = "App\\**\\Enum\\**"
+must_be = ["Enum"]
+reason = "Enum 名前空間には Enum のみ配置可能（domain-building-blocks）"

@@ -9,6 +9,7 @@
     "scripts": {
         "lint": "mago lint",
         "analyze": "mago analyze",
+        "guard": "mago guard",
         "fix": "mago lint --fix",
         "fmt": "mago fmt",
         "check:getter": "php scripts/check-no-getter.php src/Domain",
@@ -32,6 +33,7 @@
         "check": [
             "@lint",
             "@analyze",
+            "@guard",
             "@check:domain"
         ]
     }
